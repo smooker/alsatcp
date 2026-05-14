@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+name="alsatcp2"
+description="ALSA TCP audio sender 2 (st loop2 → rpi501 → RB-HX330B)"
+
+command="/usr/local/bin/alsatcp"
+command_args="tx -d hw:Loopback,1,1 -H rpi501.wg.smooker.org -p 12346"
+command_user="smooker"
+command_group="audio"
+command_background=true
+pidfile="/run/alsatcp2.pid"
+
+depend() {
+    need alsasound
+    after net
+}

@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+name="alsatcp-rx2"
+description="ALSA TCP audio receiver 2 (rpi501 → bluealsa → RB-HX330B)"
+
+HX330B_MAC="C4:A9:B8:77:F0:1D"
+
+command="/usr/local/bin/alsatcp"
+command_args="rx -d bluealsa:DEV=${HX330B_MAC},PROFILE=a2dp -p 12346"
+command_background=true
+pidfile="/run/alsatcp-rx2.pid"
+
+depend() {
+    need bluealsa
+    after net
+}

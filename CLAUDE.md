@@ -9,9 +9,11 @@ C daemon за двупосочен аудио стрийминг през TCP м
 ## Архитектура
 
 ```
-st (sender side):                    rpi501 (receiver side):
-  apps → hw:Loopback,0,0               alsatcp rx → bluealsa → Edifier
-  alsatcp tx: hw:Loopback,1,0 → TCP →  hw:Loopback,0,0 (бъдеще: rpi501→st)
+st (sender side):                         rpi501 (receiver side):
+  apps → ALSA_OUT=loop  → Loopback,0,0     alsatcp-rx  → bluealsa → Edifier R1280DBs (hci1, A2DP)
+  apps → ALSA_OUT=loop2 → Loopback,0,1     alsatcp-rx2 → bluealsa → RB-HX330B (hci1, A2DP)
+  alsatcp tx  (Loopback,1,0) → TCP:12345 →
+  alsatcp tx2 (Loopback,1,1) → TCP:12346 →
 ```
 
 ## ALSA Loopback паринг
@@ -27,12 +29,29 @@ Subdevice N свързва Device 0 и Device 1 кръстосано. Всеки
 
 ```
 st-host:
-  apps → ALSA_OUT=loop → hw:Loopback,0,0
-  rc-service alsatcp  →  alsatcp tx -d hw:Loopback,1,0 -H rpi501.wg.smooker.org -p 12345
+  ALSA_OUT=loop  → apps → hw:Loopback,0,0 → alsatcp tx  (hw:Loopback,1,0) → TCP:12345 → rpi501
+  ALSA_OUT=loop2 → apps → hw:Loopback,0,1 → alsatcp tx2 (hw:Loopback,1,1) → TCP:12346 → rpi501
 
 rpi501:
-  rc-service alsatcp-rx  →  alsatcp rx -d bluealsa:DEV=B4:E7:B3:96:8D:BF,PROFILE=a2dp -p 12345
-                                         → Edifier R1280DBs (A2DP)
+  TCP:12345 → alsatcp-rx  → bluealsa:DEV=B4:E7:B3:96:8D:BF → Edifier R1280DBs (A2DP)
+  TCP:12346 → alsatcp-rx2 → bluealsa:DEV=C4:A9:B8:77:F0:1D → RB-HX330B headphones (A2DP)
+```
+
+## BT устройства на rpi501
+
+- **hci0**: RPi5 onboard BT
+- **hci1**: RTL8761BU USB BT adapter
+- Едно `bluealsa` instance обслужва и двата адаптера (без `-i` флаг)
+- bluealsa конфиг: `-p a2dp-source -p a2dp-sink -p hfp-ag -p hsp-ag`
+- Едifer R1280DBs MAC: `B4:E7:B3:96:8D:BF`
+- RB-HX330B MAC: `C4:A9:B8:77:F0:1D`
+
+## asoundrc на smooker@st
+
+```
+pcm.loop  → hw:Loopback,0,0  (subdevice 0 → Edifier)
+pcm.loop2 → hw:Loopback,0,1  (subdevice 1 → HX330B)
+ALSA_OUT=loop|loop2|dmpch|dmtv|dmg6|btphones|btspk
 ```
 
 ## CLI интерфейс
@@ -54,28 +73,18 @@ alsatcp <tx|rx|bidi> [options]
   -v             Verbose logging
 ```
 
-### Примери
-
-```sh
-# TX (st → rpi501):
-alsatcp tx -d hw:Loopback,1,0 -H rpi501.wg.smooker.org -p 12345
-
-# RX (rpi501, слуша):
-alsatcp rx -d 'bluealsa:DEV=B4:E7:B3:96:8D:BF,PROFILE=a2dp' -p 12345
-
-# Bidi (два subdevice-а, два порта):
-alsatcp bidi -d hw:Loopback,1,0 -D hw:Loopback,1,1 \
-             -H remote -p 12345 -P 12346
-```
-
 ## Wire format
 
 Raw PCM frames — без headers. S16_LE, 48000 Hz, 2ch. Съвместимо с `arecord | socat`.
 
 ## Init scripts
 
-- `alsatcp.initd` → `/etc/init.d/alsatcp` на **st** (TX режим, user=smooker, group=audio)
-- `alsatcp-rx.initd` → `/etc/init.d/alsatcp-rx` на **rpi501** (RX режим, user=root за bluealsa dbus)
+| Файл | Машина | Описание |
+|------|--------|----------|
+| `alsatcp.initd`    | st     | TX loop0 → rpi501:12345 (user=smooker) |
+| `alsatcp2.initd`   | st     | TX loop2 → rpi501:12346 (user=smooker) |
+| `alsatcp-rx.initd` | rpi501 | RX 12345 → Edifier (root за bluealsa) |
+| `alsatcp-rx2.initd`| rpi501 | RX 12346 → HX330B (root за bluealsa) |
 
 ## Машини
 
@@ -93,10 +102,18 @@ make
 # на rpi501 директно:
 scp alsatcp.c rpi501:/tmp/alsatcp.c
 ssh rpi501 "gcc -O2 -Wall -Wextra -o /tmp/alsatcp /tmp/alsatcp.c -lasound -lpthread"
+ssh rpi501 "ssh toor 'cp /tmp/alsatcp /usr/local/bin/alsatcp'"
+```
+
+## iptables на rpi501
+
+```bash
+iptables -A INPUT -p tcp --dport 12345 -j ACCEPT
+iptables -A INPUT -p tcp --dport 12346 -j ACCEPT
+iptables-save > /var/lib/iptables/rules-save
 ```
 
 ## Бъдещи функции
 
-- RX режим на st: rpi501 → st (втори subdevice, loop2)
-- loop2 = слушалки stream (hci1 USB BT — блокирано от firmware проблем с RTL8761BU)
-- bidi режим: TX + RX едновременно с два Loopback subdevice-а
+- RX mic от HX330B: SCO/HFP 16kHz моно към st (певец setup)
+- bidi режим: едновременен TX+RX с два Loopback subdevice-а
