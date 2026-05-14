@@ -1,0 +1,20 @@
+#!/sbin/openrc-run
+name="btconnect"
+description="Auto-connect trusted Bluetooth devices at boot"
+
+start() {
+    ebegin "Connecting Bluetooth devices"
+    ( sleep 5
+      bluetoothctl -a hci0 power on >/dev/null 2>&1
+      bluetoothctl -a hci1 power on >/dev/null 2>&1
+      sleep 10
+      bluetoothctl -a hci0 connect B4:E7:B3:96:8D:BF >/dev/null 2>&1
+      bluetoothctl -a hci1 connect C4:A9:B8:77:F0:1D >/dev/null 2>&1
+    ) &
+    eend 0
+}
+
+depend() {
+    need bluealsa
+    after net
+}
