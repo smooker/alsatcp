@@ -11,6 +11,8 @@
 
 ## Low priority
 
+- [ ] **Multiplexer / serializer** — multiple audio channels over a single TCP connection. Simple framing header (channel ID + length) to multiplex/demultiplex N streams on one port. Eliminates the need for one port per channel.
+
 - [ ] **btspk.sh for rpi501** — connect/disconnect script for BT devices (modeled after st).
 - [ ] **BT auto-reconnect** — bluez `AutoConnect=true` or udev/script on disconnect event.
 - [ ] **loop3+** — additional subdevices for more destinations.
