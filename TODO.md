@@ -2,15 +2,15 @@
 
 ## High priority
 
-- [ ] **asoundrc на rpi501** — дефинирай `pcm.edifier` и `pcm.hx330b` в `/home/smooker/.asoundrc` на rpi501, така че init script-овете да ползват прости имена вместо MAC string-ове. User-editable без touch на init scripts.
+- [ ] **asoundrc on rpi501** — define `pcm.edifier` and `pcm.hx330b` in `/home/smooker/.asoundrc` on rpi501, so init scripts use simple names instead of MAC strings. User-editable without touching init scripts.
 
 ## Medium priority
 
-- [ ] **RX mic от HX330B** — SCO/HFP capture (16kHz моно) към st за певец setup. Нужен е `alsatcp tx` от rpi501 към st (обратна посока).
-- [ ] **bidi режим** — едновременен TX+RX на един alsatcp процес с два subdevice-а.
+- [ ] **RX mic from HX330B** — SCO/HFP capture (16kHz mono) back to st for vocalist setup. Requires `alsatcp tx` from rpi501 → st (reverse direction).
+- [ ] **bidi mode** — simultaneous TX+RX in a single alsatcp process using two Loopback subdevices.
 
 ## Low priority
 
-- [ ] **btspk.sh за rpi501** — скрипт за connect/disconnect на BT устройства (по модела на st).
-- [ ] **Auto-reconnect на BT** — bluez `AutoConnect=true` или скрипт при disconnect event.
-- [ ] **loop3+** — допълнителни subdevice-и за повече дестинации.
+- [ ] **btspk.sh for rpi501** — connect/disconnect script for BT devices (modeled after st).
+- [ ] **BT auto-reconnect** — bluez `AutoConnect=true` or udev/script on disconnect event.
+- [ ] **loop3+** — additional subdevices for more destinations.
