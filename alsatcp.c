@@ -20,7 +20,6 @@
  *   -v             Verbose
  */
 
-#define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 600
 
 #include <stdio.h>
@@ -121,6 +120,12 @@ static int alsa_open(const char *dev, snd_pcm_stream_t stream,
     /* query actual period size */
     snd_pcm_uframes_t buf_frames;
     snd_pcm_get_params(*pcm, &buf_frames, period_frames);
+
+    /* for capture: start explicitly so snd_pcm_readi triggers the stream */
+    if (stream == SND_PCM_STREAM_CAPTURE) {
+        snd_pcm_prepare(*pcm);
+        snd_pcm_start(*pcm);
+    }
 
     *frame_bytes = cfg->channels * snd_pcm_format_physical_width(cfg->format) / 8;
 
@@ -270,19 +275,33 @@ static void *tx_thread(void *arg)
         if (ctx->sock_fd < 0) break;
 
         /* stream loop */
+        int was_streaming = 0;
         while (!*ctx->stop) {
             snd_pcm_sframes_t n = snd_pcm_readi(ctx->pcm, ctx->buf,
                                                   ctx->period_frames);
             if (n < 0) {
-                if (cfg->verbose)
-                    fprintf(stderr, "alsatcp: tx xrun: %s\n", snd_strerror((int)n));
-                n = snd_pcm_recover(ctx->pcm, (int)n, 0);
+                int err = (int)n;
+                /* -EIO on Loopback = no writer on the other side; wait silently */
+                if (err == -EIO) {
+                    if (was_streaming) {
+                        fprintf(stderr, "alsatcp: tx: loopback source gone, waiting\n");
+                        was_streaming = 0;
+                    }
+                    snd_pcm_prepare(ctx->pcm);
+                    usleep(50000);
+                    continue;
+                }
+                n = snd_pcm_recover(ctx->pcm, err, 0);
                 if (n < 0) {
                     fprintf(stderr, "alsatcp: tx recover failed: %s\n",
                             snd_strerror((int)n));
                     break;
                 }
                 continue;
+            }
+            if (!was_streaming) {
+                fprintf(stderr, "alsatcp: tx: streaming started\n");
+                was_streaming = 1;
             }
             if (send_all(ctx->sock_fd, ctx->buf,
                          (size_t)n * ctx->frame_bytes) < 0) {

@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+name="alsatcp-rx"
+description="ALSA TCP audio receiver (rpi501 → bluealsa → Edifier)"
+
+EDIFIER_MAC="B4:E7:B3:96:8D:BF"
+
+command="/usr/local/bin/alsatcp"
+command_args="rx -d bluealsa:DEV=${EDIFIER_MAC},PROFILE=a2dp -p 12345"
+command_background=true
+pidfile="/run/alsatcp-rx.pid"
+
+depend() {
+    need bluealsa
+    after net
+}
